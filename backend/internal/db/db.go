@@ -52,8 +52,8 @@ func Init(dbPath string) (*gorm.DB, error) {
 
 func migrateContactNullableCompanyID(database *gorm.DB) {
 	type colInfo struct {
-		Name    string
-		NotNull int
+		Name    string `gorm:"column:name"`
+		NotNull int    `gorm:"column:notnull"`
 	}
 	var cols []colInfo
 	if err := database.Raw("PRAGMA table_info(contacts)").Scan(&cols).Error; err != nil {
