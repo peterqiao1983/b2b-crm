@@ -98,11 +98,11 @@ func toolSchemas() []toolDef {
 		},
 		{
 			Name:        "crm_create_contact",
-			Description: "为指定公司新建联系人",
+			Description: "新建联系人（所属公司可选，若暂无对应公司可留空后期通过 crm_update_contact 补全）",
 			InputSchema: map[string]interface{}{
 				"type": "object",
 				"properties": map[string]interface{}{
-					"company_id": map[string]interface{}{"type": "integer", "description": "所属公司 ID"},
+					"company_id": map[string]interface{}{"type": "integer", "description": "所属公司 ID（可选，不传则暂不关联公司）"},
 					"name":       map[string]interface{}{"type": "string", "description": "联系人姓名"},
 					"title":      map[string]interface{}{"type": "string", "description": "职位"},
 					"phone":      map[string]interface{}{"type": "string", "description": "电话"},
@@ -110,7 +110,18 @@ func toolSchemas() []toolDef {
 					"email":      map[string]interface{}{"type": "string", "description": "邮箱"},
 					"notes":      map[string]interface{}{"type": "string", "description": "备注"},
 				},
-				"required": []string{"company_id", "name"},
+				"required": []string{"name"},
+			},
+		},
+		{
+			Name:        "crm_list_contacts",
+			Description: "查询联系人列表，支持关键词搜索或仅查看未关联公司的独立联系人",
+			InputSchema: map[string]interface{}{
+				"type": "object",
+				"properties": map[string]interface{}{
+					"q":             map[string]interface{}{"type": "string", "description": "关键词（姓名/电话/职位）"},
+					"unlinked_only": map[string]interface{}{"type": "boolean", "description": "是否仅看未关联公司的联系人"},
+				},
 			},
 		},
 		{
@@ -401,11 +412,15 @@ func callTool(database *gorm.DB, name string, rawArgs json.RawMessage) (string, 
 	case "crm_create_contact":
 		cid := uintArg("company_id")
 		cName := strArg("name")
-		if cid == 0 || cName == "" {
-			return "company_id 和 name 必填", true
+		if cName == "" {
+			return "name 必填", true
+		}
+		var cidPtr *uint
+		if cid > 0 {
+			cidPtr = &cid
 		}
 		ct := models.Contact{
-			CompanyID: cid,
+			CompanyID: cidPtr,
 			Name:      cName,
 			Title:     strArg("title"),
 			Phone:     strArg("phone"),
@@ -417,6 +432,29 @@ func callTool(database *gorm.DB, name string, rawArgs json.RawMessage) (string, 
 			return err.Error(), true
 		}
 		result = ct
+
+	case "crm_list_contacts":
+		q := strArg("q")
+		unlinkedOnly, _ := args["unlinked_only"].(bool)
+		type contactRow struct {
+			models.Contact
+			CompanyName string `json:"company_name"`
+		}
+		tx := database.Table("contacts").
+			Select("contacts.*, COALESCE(companies.name, '') as company_name").
+			Joins("LEFT JOIN companies ON companies.id = contacts.company_id")
+		if unlinkedOnly {
+			tx = tx.Where("contacts.company_id IS NULL OR contacts.company_id = 0")
+		}
+		if q != "" {
+			like := "%" + q + "%"
+			tx = tx.Where("contacts.name LIKE ? OR contacts.phone LIKE ? OR contacts.title LIKE ? OR companies.name LIKE ?", like, like, like, like)
+		}
+		var list []contactRow
+		if err := tx.Order("contacts.updated_at DESC").Limit(50).Scan(&list).Error; err != nil {
+			return err.Error(), true
+		}
+		result = list
 
 	case "crm_create_project":
 		cid := uintArg("company_id")

@@ -23,6 +23,7 @@
         <el-button type="primary" size="small" @click="openFollowUpModal(null, null)">+ 记一条跟进</el-button>
         <el-button size="small" @click="openProjectModal(null)">+ 新建项目</el-button>
         <el-button size="small" @click="openContactModal(null)">+ 新建联系人</el-button>
+        <el-button size="small" @click="openLinkExistingContact">+ 关联已有联系人</el-button>
       </div>
 
       <el-tabs v-model="activeTab" style="margin-top: 10px;">
@@ -256,6 +257,26 @@
         <el-button type="primary" @click="saveFollowUp">保存</el-button>
       </template>
     </el-dialog>
+
+    <!-- 关联已有联系人弹窗 -->
+    <el-dialog v-model="linkCtDlg.visible" title="关联已有联系人到本公司" width="460px" append-to-body>
+      <el-form label-width="90px">
+        <el-form-item label="选择联系人">
+          <el-select v-model="linkCtDlg.contactId" filterable placeholder="搜索姓名/电话（优先展示未关联公司）" style="width: 100%">
+            <el-option
+              v-for="ct in linkCtDlg.candidates"
+              :key="ct.id"
+              :label="`${ct.name}${ct.phone ? ' (' + ct.phone + ')' : ''}${ct.company_name ? ' - 当前:' + ct.company_name : ' [未关联]'}`"
+              :value="ct.id"
+            />
+          </el-select>
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="linkCtDlg.visible = false">取消</el-button>
+        <el-button type="primary" @click="saveLinkExistingContact">确认关联</el-button>
+      </template>
+    </el-dialog>
   </el-drawer>
 </template>
 
@@ -290,6 +311,36 @@ const fuDlg = reactive({
   visible: false,
   form: { id: null, project_id: null, contact_id: null, follow_type: 'visit', occurred_at: new Date(), next_follow_at: null, next_follow_note: '', summary: '' }
 })
+const linkCtDlg = reactive({
+  visible: false,
+  contactId: null,
+  candidates: []
+})
+
+async function openLinkExistingContact() {
+  const all = await client.get('/contacts')
+  linkCtDlg.candidates = all.filter((c) => c.company_id !== companyId.value)
+  linkCtDlg.candidates.sort((a, b) => (a.company_id ? 1 : 0) - (b.company_id ? 1 : 0))
+  linkCtDlg.contactId = null
+  linkCtDlg.visible = true
+}
+
+async function saveLinkExistingContact() {
+  if (!linkCtDlg.contactId) {
+    ElMessage.warning('请选择联系人')
+    return
+  }
+  const target = linkCtDlg.candidates.find((c) => c.id === linkCtDlg.contactId)
+  if (!target) return
+  await client.put(`/contacts/${target.id}`, {
+    ...target,
+    company_id: companyId.value
+  })
+  ElMessage.success('已关联到当前公司')
+  linkCtDlg.visible = false
+  await refresh()
+  emit('changed')
+}
 
 async function refresh() {
   if (!companyId.value) return

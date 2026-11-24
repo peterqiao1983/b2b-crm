@@ -28,7 +28,7 @@ type Company struct {
 
 type Contact struct {
 	ID        uint      `gorm:"primaryKey" json:"id"`
-	CompanyID uint      `gorm:"not null;index" json:"company_id"`
+	CompanyID *uint     `gorm:"index" json:"company_id"`
 	Name      string    `gorm:"size:100;not null;index" json:"name"`
 	Title     string    `gorm:"size:100" json:"title"`
 	Phone     string    `gorm:"size:64" json:"phone"`

@@ -45,8 +45,61 @@ func Init(dbPath string) (*gorm.DB, error) {
 		return nil, err
 	}
 
+	migrateContactNullableCompanyID(database)
 	seedDefaultAdmin(database)
 	return database, nil
+}
+
+func migrateContactNullableCompanyID(database *gorm.DB) {
+	type colInfo struct {
+		Name    string
+		NotNull int
+	}
+	var cols []colInfo
+	if err := database.Raw("PRAGMA table_info(contacts)").Scan(&cols).Error; err != nil {
+		return
+	}
+	needMigrate := false
+	for _, c := range cols {
+		if c.Name == "company_id" && c.NotNull == 1 {
+			needMigrate = true
+			break
+		}
+	}
+	if !needMigrate {
+		return
+	}
+	log.Println("migrating contacts.company_id to nullable...")
+	err := database.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Exec(`CREATE TABLE contacts_new (
+			id integer PRIMARY KEY AUTOINCREMENT,
+			company_id integer,
+			name text NOT NULL,
+			title text,
+			phone text,
+			email text,
+			wechat text,
+			notes text,
+			created_at datetime,
+			updated_at datetime
+		)`).Error; err != nil {
+			return err
+		}
+		if err := tx.Exec(`INSERT INTO contacts_new (id, company_id, name, title, phone, email, wechat, notes, created_at, updated_at)
+			SELECT id, NULLIF(company_id, 0), name, title, phone, email, wechat, notes, created_at, updated_at FROM contacts`).Error; err != nil {
+			return err
+		}
+		if err := tx.Exec(`DROP TABLE contacts`).Error; err != nil {
+			return err
+		}
+		if err := tx.Exec(`ALTER TABLE contacts_new RENAME TO contacts`).Error; err != nil {
+			return err
+		}
+		return tx.Exec(`CREATE INDEX IF NOT EXISTS idx_contacts_company_id ON contacts(company_id)`).Error
+	})
+	if err != nil {
+		log.Printf("migrate contacts failed: %v", err)
+	}
 }
 
 func seedDefaultAdmin(database *gorm.DB) {

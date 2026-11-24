@@ -387,6 +387,7 @@ func (h *CRMHandler) CompanyChainSummary(c *gin.Context) {
 
 func (h *CRMHandler) ListContacts(c *gin.Context) {
 	companyID := c.Query("company_id")
+	unlinked := c.Query("unlinked")
 	q := c.Query("q")
 
 	type contactRow struct {
@@ -396,7 +397,9 @@ func (h *CRMHandler) ListContacts(c *gin.Context) {
 	tx := h.DB.Table("contacts").
 		Select("contacts.*, COALESCE(companies.name, '') as company_name").
 		Joins("LEFT JOIN companies ON companies.id = contacts.company_id")
-	if companyID != "" {
+	if unlinked == "1" || unlinked == "true" {
+		tx = tx.Where("contacts.company_id IS NULL OR contacts.company_id = 0")
+	} else if companyID != "" {
 		tx = tx.Where("contacts.company_id = ?", companyID)
 	}
 	if q != "" {
@@ -408,14 +411,20 @@ func (h *CRMHandler) ListContacts(c *gin.Context) {
 		response.Error(c, http.StatusInternalServerError, "查询联系人失败")
 		return
 	}
+	if list == nil {
+		list = []contactRow{}
+	}
 	response.OK(c, list)
 }
 
 func (h *CRMHandler) CreateContact(c *gin.Context) {
 	var item models.Contact
-	if err := c.ShouldBindJSON(&item); err != nil || item.Name == "" || item.CompanyID == 0 {
-		response.Error(c, http.StatusBadRequest, "联系人姓名与所属公司不能为空")
+	if err := c.ShouldBindJSON(&item); err != nil || item.Name == "" {
+		response.Error(c, http.StatusBadRequest, "联系人姓名不能为空")
 		return
+	}
+	if item.CompanyID != nil && *item.CompanyID == 0 {
+		item.CompanyID = nil
 	}
 	if err := h.DB.Create(&item).Error; err != nil {
 		response.Error(c, http.StatusInternalServerError, "创建联系人失败")
@@ -446,7 +455,9 @@ func (h *CRMHandler) UpdateContact(c *gin.Context) {
 	existing.Email = payload.Email
 	existing.Wechat = payload.Wechat
 	existing.Notes = payload.Notes
-	if payload.CompanyID != 0 {
+	if payload.CompanyID != nil && *payload.CompanyID == 0 {
+		existing.CompanyID = nil
+	} else {
 		existing.CompanyID = payload.CompanyID
 	}
 	if err := h.DB.Save(&existing).Error; err != nil {
