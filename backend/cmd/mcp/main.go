@@ -172,6 +172,74 @@ func toolSchemas() []toolDef {
 				},
 			},
 		},
+		{
+			Name:        "crm_update_company",
+			Description: "更新客户公司信息（仅更新传入的字段）",
+			InputSchema: map[string]interface{}{
+				"type": "object",
+				"properties": map[string]interface{}{
+					"company_id": map[string]interface{}{"type": "integer", "description": "公司 ID"},
+					"name":       map[string]interface{}{"type": "string", "description": "公司名称"},
+					"stage":      map[string]interface{}{"type": "string", "description": "阶段: lead / customer / key_account"},
+					"industry":   map[string]interface{}{"type": "string", "description": "行业"},
+					"owner":      map[string]interface{}{"type": "string", "description": "负责人"},
+					"source":     map[string]interface{}{"type": "string", "description": "线索来源"},
+					"notes":      map[string]interface{}{"type": "string", "description": "备注"},
+				},
+				"required": []string{"company_id"},
+			},
+		},
+		{
+			Name:        "crm_update_contact",
+			Description: "更新联系人信息（仅更新传入的字段）",
+			InputSchema: map[string]interface{}{
+				"type": "object",
+				"properties": map[string]interface{}{
+					"contact_id": map[string]interface{}{"type": "integer", "description": "联系人 ID"},
+					"company_id": map[string]interface{}{"type": "integer", "description": "所属公司 ID"},
+					"name":       map[string]interface{}{"type": "string", "description": "姓名"},
+					"title":      map[string]interface{}{"type": "string", "description": "职位"},
+					"phone":      map[string]interface{}{"type": "string", "description": "电话"},
+					"wechat":     map[string]interface{}{"type": "string", "description": "微信"},
+					"email":      map[string]interface{}{"type": "string", "description": "邮箱"},
+					"notes":      map[string]interface{}{"type": "string", "description": "备注"},
+				},
+				"required": []string{"contact_id"},
+			},
+		},
+		{
+			Name:        "crm_update_project",
+			Description: "更新项目/商机信息（仅更新传入的字段）",
+			InputSchema: map[string]interface{}{
+				"type": "object",
+				"properties": map[string]interface{}{
+					"project_id":       map[string]interface{}{"type": "integer", "description": "项目 ID"},
+					"name":             map[string]interface{}{"type": "string", "description": "项目名称"},
+					"stage":            map[string]interface{}{"type": "string", "description": "阶段: initial / testing / quoting / won / lost"},
+					"estimated_amount": map[string]interface{}{"type": "number", "description": "预估金额"},
+					"description":      map[string]interface{}{"type": "string", "description": "项目说明"},
+				},
+				"required": []string{"project_id"},
+			},
+		},
+		{
+			Name:        "crm_update_follow_up",
+			Description: "更新跟进记录（仅更新传入的字段）",
+			InputSchema: map[string]interface{}{
+				"type": "object",
+				"properties": map[string]interface{}{
+					"follow_up_id":     map[string]interface{}{"type": "integer", "description": "跟进记录 ID"},
+					"project_id":       map[string]interface{}{"type": "integer", "description": "关联项目 ID"},
+					"contact_id":       map[string]interface{}{"type": "integer", "description": "对接人 ID"},
+					"follow_type":      map[string]interface{}{"type": "string", "description": "方式: visit / call / meeting / sample / other"},
+					"summary":          map[string]interface{}{"type": "string", "description": "跟进纪要"},
+					"occurred_at":      map[string]interface{}{"type": "string", "description": "发生时间（RFC3339 或 YYYY-MM-DD HH:MM）"},
+					"next_follow_at":   map[string]interface{}{"type": "string", "description": "下次跟进时间（RFC3339 或 YYYY-MM-DD HH:MM）"},
+					"next_follow_note": map[string]interface{}{"type": "string", "description": "下次跟进待办备注"},
+				},
+				"required": []string{"follow_up_id"},
+			},
+		},
 	}
 }
 
@@ -482,6 +550,124 @@ func callTool(database *gorm.DB, name string, rawArgs json.RawMessage) (string, 
 			Where("follow_ups.next_follow_at IS NOT NULL AND follow_ups.next_follow_at >= ? AND follow_ups.next_follow_at <= ?", start, end).
 			Order("follow_ups.next_follow_at ASC").Scan(&upcoming)
 		result = map[string]interface{}{"completed": completed, "upcoming": upcoming}
+
+	case "crm_update_company":
+		cid := uintArg("company_id")
+		if cid == 0 {
+			return "company_id 必填", true
+		}
+		var comp models.Company
+		if err := database.First(&comp, cid).Error; err != nil {
+			return "公司不存在", true
+		}
+		updates := map[string]interface{}{}
+		for _, k := range []string{"name", "stage", "industry", "owner", "source", "notes"} {
+			if _, ok := args[k]; ok {
+				updates[k] = strArg(k)
+			}
+		}
+		if len(updates) > 0 {
+			if err := database.Model(&comp).Updates(updates).Error; err != nil {
+				return err.Error(), true
+			}
+			_ = database.First(&comp, cid)
+		}
+		result = comp
+
+	case "crm_update_contact":
+		ctid := uintArg("contact_id")
+		if ctid == 0 {
+			return "contact_id 必填", true
+		}
+		var ct models.Contact
+		if err := database.First(&ct, ctid).Error; err != nil {
+			return "联系人不存在", true
+		}
+		updates := map[string]interface{}{}
+		for _, k := range []string{"name", "title", "phone", "wechat", "email", "notes"} {
+			if _, ok := args[k]; ok {
+				updates[k] = strArg(k)
+			}
+		}
+		if cid := uintArg("company_id"); cid > 0 {
+			updates["company_id"] = cid
+		}
+		if len(updates) > 0 {
+			if err := database.Model(&ct).Updates(updates).Error; err != nil {
+				return err.Error(), true
+			}
+			_ = database.First(&ct, ctid)
+		}
+		result = ct
+
+	case "crm_update_project":
+		pid := uintArg("project_id")
+		if pid == 0 {
+			return "project_id 必填", true
+		}
+		var proj models.Project
+		if err := database.First(&proj, pid).Error; err != nil {
+			return "项目不存在", true
+		}
+		updates := map[string]interface{}{}
+		for _, k := range []string{"name", "stage", "description"} {
+			if _, ok := args[k]; ok {
+				updates[k] = strArg(k)
+			}
+		}
+		if _, ok := args["estimated_amount"]; ok {
+			updates["estimated_amount"] = floatArg("estimated_amount")
+		}
+		if len(updates) > 0 {
+			if err := database.Model(&proj).Updates(updates).Error; err != nil {
+				return err.Error(), true
+			}
+			_ = database.First(&proj, pid)
+		}
+		result = proj
+
+	case "crm_update_follow_up":
+		fid := uintArg("follow_up_id")
+		if fid == 0 {
+			return "follow_up_id 必填", true
+		}
+		var fu models.FollowUp
+		if err := database.First(&fu, fid).Error; err != nil {
+			return "跟进记录不存在", true
+		}
+		updates := map[string]interface{}{}
+		for _, k := range []string{"follow_type", "summary", "next_follow_note"} {
+			if _, ok := args[k]; ok {
+				updates[k] = strArg(k)
+			}
+		}
+		if pid := uintArg("project_id"); pid > 0 {
+			updates["project_id"] = pid
+		}
+		if ctid := uintArg("contact_id"); ctid > 0 {
+			updates["contact_id"] = ctid
+		}
+		if s := strArg("occurred_at"); s != "" {
+			t, err := parseTimeFlex(s)
+			if err != nil {
+				return err.Error(), true
+			}
+			updates["occurred_at"] = t
+		}
+		if s := strArg("next_follow_at"); s != "" {
+			t, err := parseTimeFlex(s)
+			if err != nil {
+				return err.Error(), true
+			}
+			updates["next_follow_at"] = t
+		}
+		if len(updates) > 0 {
+			if err := database.Model(&fu).Updates(updates).Error; err != nil {
+				return err.Error(), true
+			}
+			_ = database.First(&fu, fid)
+		}
+		result = fu
 
 	default:
 		return "未知工具: " + name, true
