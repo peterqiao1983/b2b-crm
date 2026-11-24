@@ -1,0 +1,10 @@
+# Binaries & build artifacts
+backend/crm-server
+frontend/node_modules/
+frontend/dist/
+
+# Local data & env
+*.db
+*.db-wal
+*.db-shm
+.env
