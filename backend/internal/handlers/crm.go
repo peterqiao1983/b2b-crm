@@ -45,7 +45,7 @@ func (h *CRMHandler) Dashboard(c *gin.Context) {
 		Joins("LEFT JOIN companies ON companies.id = follow_ups.company_id").
 		Joins("LEFT JOIN projects ON projects.id = follow_ups.project_id").
 		Joins("LEFT JOIN contacts ON contacts.id = follow_ups.contact_id").
-		Where("follow_ups.next_follow_at IS NOT NULL AND follow_ups.next_follow_at >= ?", now).
+		Where("follow_ups.deleted_at IS NULL AND follow_ups.next_follow_at IS NOT NULL AND follow_ups.next_follow_at >= ?", now).
 		Order("follow_ups.next_follow_at ASC").
 		Limit(20).
 		Scan(&upcoming)
@@ -60,6 +60,7 @@ func (h *CRMHandler) Dashboard(c *gin.Context) {
 			"won_amount":       wonAmount,
 		},
 		"upcoming": upcoming,
+		"stage_stats": computeStageStats(h.DB),
 	})
 }
 
@@ -132,6 +133,7 @@ func (h *CRMHandler) CreateCompany(c *gin.Context) {
 		response.Error(c, http.StatusInternalServerError, "创建公司失败")
 		return
 	}
+	recordAudit(h.DB, c, "create", "company", item.ID, item.Name, "新建客户公司")
 	response.OK(c, item)
 }
 
@@ -166,6 +168,7 @@ func (h *CRMHandler) UpdateCompany(c *gin.Context) {
 		response.Error(c, http.StatusInternalServerError, "更新公司失败")
 		return
 	}
+	recordAudit(h.DB, c, "update", "company", existing.ID, existing.Name, "更新公司信息")
 	response.OK(c, existing)
 }
 
@@ -175,21 +178,34 @@ func (h *CRMHandler) DeleteCompany(c *gin.Context) {
 		response.Error(c, http.StatusBadRequest, "无效的公司 ID")
 		return
 	}
+	var comp models.Company
+	_ = h.DB.First(&comp, id).Error
 	err = h.DB.Transaction(func(tx *gorm.DB) error {
 		var projIDs []uint
-		tx.Model(&models.Project{}).Where("company_id = ?", id).Pluck("id", &projIDs)
-		if len(projIDs) > 0 {
-			tx.Where("project_id IN ?", projIDs).Delete(&models.ProjectContact{})
+		if err := tx.Model(&models.Project{}).Where("company_id = ?", id).Pluck("id", &projIDs).Error; err != nil {
+			return err
 		}
-		tx.Where("company_id = ?", id).Delete(&models.FollowUp{})
-		tx.Where("company_id = ?", id).Delete(&models.Project{})
-		tx.Where("company_id = ?", id).Delete(&models.Contact{})
+		if len(projIDs) > 0 {
+			if err := tx.Where("project_id IN ?", projIDs).Delete(&models.ProjectContact{}).Error; err != nil {
+				return err
+			}
+		}
+		if err := tx.Where("company_id = ?", id).Delete(&models.FollowUp{}).Error; err != nil {
+			return err
+		}
+		if err := tx.Where("company_id = ?", id).Delete(&models.Project{}).Error; err != nil {
+			return err
+		}
+		if err := tx.Where("company_id = ?", id).Delete(&models.Contact{}).Error; err != nil {
+			return err
+		}
 		return tx.Delete(&models.Company{}, id).Error
 	})
 	if err != nil {
 		response.Error(c, http.StatusInternalServerError, "删除公司失败")
 		return
 	}
+	recordAudit(h.DB, c, "delete", "company", uint(id), comp.Name, "移入回收站（含关联记录）")
 	response.OK(c, gin.H{"deleted": true})
 }
 
@@ -396,7 +412,8 @@ func (h *CRMHandler) ListContacts(c *gin.Context) {
 	}
 	tx := h.DB.Table("contacts").
 		Select("contacts.*, COALESCE(companies.name, '') as company_name").
-		Joins("LEFT JOIN companies ON companies.id = contacts.company_id")
+		Joins("LEFT JOIN companies ON companies.id = contacts.company_id").
+		Where("contacts.deleted_at IS NULL")
 	if unlinked == "1" || unlinked == "true" {
 		tx = tx.Where("contacts.company_id IS NULL OR contacts.company_id = 0")
 	} else if companyID != "" {
@@ -430,6 +447,7 @@ func (h *CRMHandler) CreateContact(c *gin.Context) {
 		response.Error(c, http.StatusInternalServerError, "创建联系人失败")
 		return
 	}
+	recordAudit(h.DB, c, "create", "contact", item.ID, item.Name, "新建联系人")
 	response.OK(c, item)
 }
 
@@ -464,6 +482,7 @@ func (h *CRMHandler) UpdateContact(c *gin.Context) {
 		response.Error(c, http.StatusInternalServerError, "更新联系人失败")
 		return
 	}
+	recordAudit(h.DB, c, "update", "contact", existing.ID, existing.Name, "更新联系人")
 	response.OK(c, existing)
 }
 
@@ -473,11 +492,21 @@ func (h *CRMHandler) DeleteContact(c *gin.Context) {
 		response.Error(c, http.StatusBadRequest, "无效的联系人 ID")
 		return
 	}
-	h.DB.Transaction(func(tx *gorm.DB) error {
-		tx.Where("contact_id = ?", id).Delete(&models.ProjectContact{})
-		tx.Model(&models.FollowUp{}).Where("contact_id = ?", id).Update("contact_id", nil)
+	var ct models.Contact
+	_ = h.DB.First(&ct, id).Error
+	if err := h.DB.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Where("contact_id = ?", id).Delete(&models.ProjectContact{}).Error; err != nil {
+			return err
+		}
+		if err := tx.Model(&models.FollowUp{}).Where("contact_id = ?", id).Update("contact_id", nil).Error; err != nil {
+			return err
+		}
 		return tx.Delete(&models.Contact{}, id).Error
-	})
+	}); err != nil {
+		response.Error(c, http.StatusInternalServerError, "删除联系人失败")
+		return
+	}
+	recordAudit(h.DB, c, "delete", "contact", uint(id), ct.Name, "移入回收站")
 	response.OK(c, gin.H{"deleted": true})
 }
 
@@ -526,6 +555,7 @@ func (h *CRMHandler) CreateProject(c *gin.Context) {
 		response.Error(c, http.StatusInternalServerError, "创建项目失败")
 		return
 	}
+	recordAudit(h.DB, c, "create", "project", item.ID, item.Name, "新建项目商机")
 	response.OK(c, item)
 }
 
@@ -557,6 +587,7 @@ func (h *CRMHandler) UpdateProject(c *gin.Context) {
 		response.Error(c, http.StatusInternalServerError, "更新项目失败")
 		return
 	}
+	recordAudit(h.DB, c, "update", "project", existing.ID, existing.Name, "更新项目阶段/信息")
 	response.OK(c, existing)
 }
 
@@ -566,11 +597,21 @@ func (h *CRMHandler) DeleteProject(c *gin.Context) {
 		response.Error(c, http.StatusBadRequest, "无效的项目 ID")
 		return
 	}
-	h.DB.Transaction(func(tx *gorm.DB) error {
-		tx.Where("project_id = ?", id).Delete(&models.ProjectContact{})
-		tx.Model(&models.FollowUp{}).Where("project_id = ?", id).Update("project_id", nil)
+	var pj models.Project
+	_ = h.DB.First(&pj, id).Error
+	if err := h.DB.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Where("project_id = ?", id).Delete(&models.ProjectContact{}).Error; err != nil {
+			return err
+		}
+		if err := tx.Model(&models.FollowUp{}).Where("project_id = ?", id).Update("project_id", nil).Error; err != nil {
+			return err
+		}
 		return tx.Delete(&models.Project{}, id).Error
-	})
+	}); err != nil {
+		response.Error(c, http.StatusInternalServerError, "删除项目失败")
+		return
+	}
+	recordAudit(h.DB, c, "delete", "project", uint(id), pj.Name, "移入回收站")
 	response.OK(c, gin.H{"deleted": true})
 }
 
@@ -645,7 +686,8 @@ func (h *CRMHandler) ListFollowUps(c *gin.Context) {
 		Select("follow_ups.*, COALESCE(companies.name, '') as company_name, COALESCE(projects.name, '') as project_name, COALESCE(contacts.name, '') as contact_name").
 		Joins("LEFT JOIN companies ON companies.id = follow_ups.company_id").
 		Joins("LEFT JOIN projects ON projects.id = follow_ups.project_id").
-		Joins("LEFT JOIN contacts ON contacts.id = follow_ups.contact_id")
+		Joins("LEFT JOIN contacts ON contacts.id = follow_ups.contact_id").
+		Where("follow_ups.deleted_at IS NULL")
 	if companyID != "" {
 		tx = tx.Where("follow_ups.company_id = ?", companyID)
 	}
@@ -653,7 +695,19 @@ func (h *CRMHandler) ListFollowUps(c *gin.Context) {
 		tx = tx.Where("follow_ups.project_id = ?", projectID)
 	}
 	var list []fuRow
-	if err := tx.Order("follow_ups.occurred_at DESC").Limit(200).Scan(&list).Error; err != nil {
+	usePage, page, pageSize := parsePageParams(c)
+	if usePage {
+		var total int64
+		tx.Count(&total)
+		var listPage []fuRow
+		if err := tx.Order("follow_ups.occurred_at DESC").Offset((page - 1) * pageSize).Limit(pageSize).Scan(&listPage).Error; err != nil {
+			response.Error(c, http.StatusInternalServerError, "查询跟进记录失败")
+			return
+		}
+		response.OK(c, gin.H{"items": listPage, "total": total, "page": page, "page_size": pageSize})
+		return
+	}
+	if err := tx.Order("follow_ups.occurred_at DESC").Scan(&list).Error; err != nil {
 		response.Error(c, http.StatusInternalServerError, "查询跟进记录失败")
 		return
 	}
@@ -681,6 +735,7 @@ func (h *CRMHandler) CreateFollowUp(c *gin.Context) {
 		response.Error(c, http.StatusInternalServerError, "创建跟进记录失败")
 		return
 	}
+	recordAudit(h.DB, c, "create", "follow_up", item.ID, item.FollowType, item.Summary)
 	response.OK(c, item)
 }
 
@@ -716,6 +771,7 @@ func (h *CRMHandler) UpdateFollowUp(c *gin.Context) {
 		response.Error(c, http.StatusInternalServerError, "更新跟进记录失败")
 		return
 	}
+	recordAudit(h.DB, c, "update", "follow_up", existing.ID, existing.FollowType, existing.Summary)
 	response.OK(c, existing)
 }
 
@@ -725,7 +781,13 @@ func (h *CRMHandler) DeleteFollowUp(c *gin.Context) {
 		response.Error(c, http.StatusBadRequest, "无效的跟进 ID")
 		return
 	}
-	h.DB.Delete(&models.FollowUp{}, id)
+	var fu models.FollowUp
+	_ = h.DB.First(&fu, id).Error
+	if err := h.DB.Delete(&models.FollowUp{}, id).Error; err != nil {
+		response.Error(c, http.StatusInternalServerError, "删除跟进记录失败")
+		return
+	}
+	recordAudit(h.DB, c, "delete", "follow_up", uint(id), fu.FollowType, "移入回收站")
 	response.OK(c, gin.H{"deleted": true})
 }
 
@@ -761,7 +823,7 @@ func (h *CRMHandler) CalendarFollowUps(c *gin.Context) {
 		Joins("LEFT JOIN companies ON companies.id = follow_ups.company_id").
 		Joins("LEFT JOIN projects ON projects.id = follow_ups.project_id").
 		Joins("LEFT JOIN contacts ON contacts.id = follow_ups.contact_id").
-		Where("follow_ups.occurred_at >= ? AND follow_ups.occurred_at <= ?", start, end).
+		Where("follow_ups.deleted_at IS NULL AND follow_ups.occurred_at >= ? AND follow_ups.occurred_at <= ?", start, end).
 		Order("follow_ups.occurred_at ASC").
 		Scan(&completed)
 
@@ -771,7 +833,7 @@ func (h *CRMHandler) CalendarFollowUps(c *gin.Context) {
 		Joins("LEFT JOIN companies ON companies.id = follow_ups.company_id").
 		Joins("LEFT JOIN projects ON projects.id = follow_ups.project_id").
 		Joins("LEFT JOIN contacts ON contacts.id = follow_ups.contact_id").
-		Where("follow_ups.next_follow_at IS NOT NULL AND follow_ups.next_follow_at >= ? AND follow_ups.next_follow_at <= ?", start, end).
+		Where("follow_ups.deleted_at IS NULL AND follow_ups.next_follow_at IS NOT NULL AND follow_ups.next_follow_at >= ? AND follow_ups.next_follow_at <= ?", start, end).
 		Order("follow_ups.next_follow_at ASC").
 		Scan(&upcoming)
 

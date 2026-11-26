@@ -4,6 +4,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"time"
 
 	"b2b-crm/internal/db"
 	"b2b-crm/internal/handlers"
@@ -50,7 +51,7 @@ func main() {
 		v1.GET("/health", func(c *gin.Context) {
 			response.OK(c, gin.H{"status": "ok", "db": "sqlite-wal"})
 		})
-		v1.POST("/auth/login", authHandler.Login)
+		v1.POST("/auth/login", middleware.LoginRateLimit(10, time.Minute), authHandler.Login)
 
 		auth := v1.Group("")
 		auth.Use(middleware.AuthRequired(jwtSecret))
@@ -83,6 +84,10 @@ func main() {
 			auth.PUT("/follow-ups/:id", crmHandler.UpdateFollowUp)
 			auth.DELETE("/follow-ups/:id", crmHandler.DeleteFollowUp)
 			auth.GET("/calendar/follow-ups", crmHandler.CalendarFollowUps)
+			auth.GET("/trash", crmHandler.ListTrash)
+			auth.POST("/trash/restore", crmHandler.RestoreTrash)
+			auth.GET("/audit-logs", crmHandler.ListAuditLogs)
+			auth.GET("/export/csv", crmHandler.ExportCSV)
 		}
 	}
 

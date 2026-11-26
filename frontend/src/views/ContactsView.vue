@@ -11,7 +11,7 @@
         <el-button type="primary" style="margin-left: auto;" @click="openEdit(null)">+ 新建联系人</el-button>
       </div>
 
-      <el-table :data="list" v-loading="loading" stripe style="margin-top: 12px;">
+      <el-table class="desktop-only" :data="list" v-loading="loading" stripe style="margin-top: 12px;">
         <el-table-column prop="name" label="姓名" width="120" />
         <el-table-column label="所属公司" min-width="180">
           <template #default="{ row }">
@@ -35,6 +35,20 @@
           </template>
         </el-table-column>
       </el-table>
+
+      <div class="mobile-only" style="margin-top: 12px;">
+        <div v-for="row in list" :key="row.id" class="m-card">
+          <div class="m-top">
+            <span class="m-name">{{ row.name }} <small v-if="row.title" style="color:#64748b;font-weight:400;">· {{ row.title }}</small></span>
+            <el-button v-if="row.company_id" link type="primary" size="small" @click="drawerRef?.open(row.company_id)">{{ row.company_name || `公司#${row.company_id}` }}</el-button>
+          </div>
+          <div class="m-acts">
+            <a v-if="row.phone" :href="`tel:${row.phone}`" class="tel-link">拨打 {{ row.phone }}</a>
+            <el-button v-if="row.wechat" link type="primary" size="small" @click="copyWechat(row.wechat)">复制微信: {{ row.wechat }}</el-button>
+            <el-button link size="small" @click="openEdit(row)">编辑</el-button>
+          </div>
+        </div>
+      </div>
     </el-card>
 
     <el-dialog v-model="dlg.visible" :title="dlg.form.id ? '编辑联系人' : '新建联系人'" width="480px">
@@ -133,9 +147,23 @@ async function remove(id) {
   await load()
 }
 
+async function copyWechat(wx) {
+  try {
+    await navigator.clipboard.writeText(wx)
+    ElMessage.success("微信号已复制")
+  } catch {
+    ElMessage.info(wx)
+  }
+}
+
 onMounted(load)
 </script>
 
 <style scoped>
 .toolbar { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+.m-card { padding: 12px; border: 1px solid #e2e8f0; border-radius: 10px; margin-bottom: 10px; background: #fff; }
+.m-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
+.m-name { font-weight: 600; color: #1e293b; }
+.m-acts { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+.tel-link { font-size: 13px; color: #3b5bdb; text-decoration: none; font-weight: 500; }
 </style>

@@ -4,6 +4,7 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"time"
 
 	"b2b-crm/internal/models"
 
@@ -36,17 +37,16 @@ func Init(dbPath string) (*gorm.DB, error) {
 
 	if err := database.AutoMigrate(
 		&models.User{},
-		&models.Company{},
-		&models.Contact{},
-		&models.Project{},
-		&models.ProjectContact{},
-		&models.FollowUp{},
+		&models.AuditLog{},
 	); err != nil {
 		return nil, err
 	}
-
+	for _, tbl := range []string{"companies", "contacts", "projects", "follow_ups"} {
+		ensureDeletedAtColumn(database, tbl)
+	}
 	migrateContactNullableCompanyID(database)
 	seedDefaultAdmin(database)
+	go startWALCheckpointLoop(database)
 	return database, nil
 }
 
@@ -138,4 +138,31 @@ func seedDefaultAdmin(database *gorm.DB) {
 	} else {
 		log.Printf("initialized default admin user: %s", username)
 	}
+}
+
+func startWALCheckpointLoop(database *gorm.DB) {
+	ticker := time.NewTicker(6 * time.Hour)
+	defer ticker.Stop()
+	for range ticker.C {
+		if err := database.Exec("PRAGMA wal_checkpoint(PASSIVE)").Error; err != nil {
+			log.Printf("wal_checkpoint failed: %v", err)
+		}
+	}
+}
+
+func ensureDeletedAtColumn(database *gorm.DB, table string) {
+	type colInfo struct {
+		Name string `gorm:"column:name"`
+	}
+	var cols []colInfo
+	if err := database.Raw("PRAGMA table_info(" + table + ")").Scan(&cols).Error; err != nil || len(cols) == 0 {
+		return
+	}
+	for _, c := range cols {
+		if c.Name == "deleted_at" {
+			return
+		}
+	}
+	_ = database.Exec("ALTER TABLE " + table + " ADD COLUMN deleted_at datetime").Error
+	_ = database.Exec("CREATE INDEX IF NOT EXISTS idx_" + table + "_deleted_at ON " + table + "(deleted_at)").Error
 }
