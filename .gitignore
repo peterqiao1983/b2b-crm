@@ -1,5 +1,6 @@
 # Binaries & build artifacts
 backend/crm-server
+backend/crm-mcp
 frontend/node_modules/
 frontend/dist/
 
