@@ -26,6 +26,7 @@
       </div>
       <template #footer>
         <el-button @click="detailDlg.visible = false">关闭</el-button>
+        <el-button v-if="detailDlg.kind === 'upcoming'" type="warning" @click="cancelTodo">取消待办</el-button>
         <el-button type="primary" @click="goCompany">打开公司链式详情</el-button>
       </template>
     </el-dialog>
@@ -41,6 +42,7 @@ import dayGridPlugin from '@fullcalendar/daygrid'
 import timeGridPlugin from '@fullcalendar/timegrid'
 import interactionPlugin from '@fullcalendar/interaction'
 import client from '../api/client'
+import { ElMessage } from 'element-plus'
 import { FOLLOW_TYPES, fmtDate } from '../utils/constants'
 import CompanyChainDrawer from '../components/CompanyChainDrawer.vue'
 
@@ -102,6 +104,25 @@ const calendarOptions = reactive({
     detailDlg.visible = true
   }
 })
+
+async function cancelTodo() {
+  const item = detailDlg.item
+  if (!item) return
+  try {
+    await client.put(`/follow-ups/${item.id}`, {
+      project_id: item.project_id || null,
+      contact_id: item.contact_id || null,
+      follow_type: item.follow_type,
+      occurred_at: item.occurred_at,
+      next_follow_at: null,
+      next_follow_note: '',
+      summary: item.summary || ''
+    })
+    ElMessage.success('已取消待办')
+    detailDlg.visible = false
+    reloadEvents()
+  } catch (e) {}
+}
 
 function goCompany() {
   const id = detailDlg.item?.company_id
