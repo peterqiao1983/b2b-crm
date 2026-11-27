@@ -48,7 +48,28 @@
           <el-button type="primary" link @click="router.push('/projects')">进入项目看板</el-button>
         </div>
       </template>
-      <div ref="stageChart" class="stage-chart"></div>
+      <el-row :gutter="20" align="middle">
+        <el-col :xs="24" :md="8">
+          <div class="dev-metrics">
+            <div class="dm-title">2026 开发成果</div>
+            <div class="dm-item">
+              <span class="dm-label">2026 新客户</span>
+              <span class="dm-value num-tabular">{{ devMetrics.new_customers }}</span>
+            </div>
+            <div class="dm-item">
+              <span class="dm-label">新开发成功项目</span>
+              <span class="dm-value num-tabular">{{ devMetrics.new_projects }}</span>
+            </div>
+            <div class="dm-item">
+              <span class="dm-label">新开发成功客户</span>
+              <span class="dm-value num-tabular">{{ devMetrics.success_customers }}</span>
+            </div>
+          </div>
+        </el-col>
+        <el-col :xs="24" :md="16">
+          <div ref="stageChart" class="stage-chart"></div>
+        </el-col>
+      </el-row>
     </el-card>
 
     <el-card shadow="never" style="margin-top: 14px;">
@@ -128,6 +149,7 @@ const drawerRef = ref(null)
 const counts = ref({ companies: 0, projects: 0, contacts: 0, follow_ups: 0, estimated_amount: 0, won_amount: 0 })
 const upcoming = ref([])
 const stageStats = ref([])
+const devMetrics = ref({ new_customers: 0, new_projects: 0, success_customers: 0 })
 
 const stageChart = ref(null)
 let stageChartInstance = null
@@ -166,6 +188,7 @@ async function loadData() {
   counts.value = data.counts || counts.value
   upcoming.value = data.upcoming || []
   stageStats.value = data.stage_stats || []
+  devMetrics.value = data.dev_metrics || devMetrics.value
   await nextTick()
   renderStageChart()
 }
@@ -237,6 +260,11 @@ onBeforeUnmount(() => {
 .stat-val.sub { font-size: 20px; }
 .card-hd { display: flex; justify-content: space-between; align-items: center; font-weight: 600; }
 .stage-chart { height: 320px; width: 100%; }
+.dev-metrics { display: flex; flex-direction: column; gap: 16px; padding: 8px 0; }
+.dm-title { font-size: 14px; font-weight: 700; color: #0f172a; margin-bottom: 2px; }
+.dm-item { display: flex; justify-content: space-between; align-items: baseline; border-bottom: 1px dashed #e2e8f0; padding-bottom: 12px; }
+.dm-label { font-size: 13px; color: #64748b; }
+.dm-value { font-size: 26px; font-weight: 700; color: #0f172a; }
 .date-cell { display: flex; align-items: center; gap: 6px; }
 .m-card { padding: 12px; border: 1px solid #e2e8f0; border-radius: 10px; margin-bottom: 10px; background: #fff; }
 .m-card-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px; }

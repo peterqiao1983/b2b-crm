@@ -26,6 +26,7 @@ type Company struct {
 	Website   string         `gorm:"size:255" json:"website"`
 	Address   string         `gorm:"size:255" json:"address"`
 	Notes     string         `gorm:"type:text" json:"notes"`
+	DevYear   int            `gorm:"default:0;index" json:"dev_year"`
 	CreatedAt time.Time      `json:"created_at"`
 	UpdatedAt time.Time      `json:"updated_at"`
 	DeletedAt gorm.DeletedAt `gorm:"index" json:"deleted_at,omitempty"`
@@ -54,6 +55,7 @@ type Project struct {
 	TargetDate      *time.Time     `json:"target_date"`
 	Owner           string         `gorm:"size:64" json:"owner"`
 	Description     string         `gorm:"type:text" json:"description"`
+	DevYear         int            `gorm:"default:0;index" json:"dev_year"`
 	CreatedAt       time.Time      `json:"created_at"`
 	UpdatedAt       time.Time      `json:"updated_at"`
 	DeletedAt       gorm.DeletedAt `gorm:"index" json:"deleted_at,omitempty"`
