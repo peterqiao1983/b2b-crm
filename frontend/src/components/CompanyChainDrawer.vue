@@ -75,22 +75,6 @@
               </el-table>
               <div v-else class="empty-hint">暂未指派人员</div>
 
-              <div class="sub-sec-title">项目跟进时间线（{{ p.follow_ups.length }}）</div>
-              <el-timeline v-if="p.follow_ups.length">
-                <el-timeline-item v-for="fu in p.follow_ups" :key="fu.id" :timestamp="fmtDate(fu.occurred_at)" placement="top">
-                  <div class="fu-card">
-                    <div class="fu-head">
-                      <el-tag size="small" effect="plain">{{ FOLLOW_TYPES[fu.follow_type] || fu.follow_type }}</el-tag>
-                      <span v-if="fu.contact_name" class="fu-who">对接人：{{ fu.contact_name }}</span>
-                    </div>
-                    <div class="fu-sum">{{ fu.summary }}</div>
-                    <div v-if="fu.next_follow_at" class="fu-next">
-                      下次计划：{{ fmtDate(fu.next_follow_at) }} {{ fu.next_follow_note ? '· ' + fu.next_follow_note : '' }}
-                    </div>
-                  </div>
-                </el-timeline-item>
-              </el-timeline>
-              <div v-else class="empty-hint">暂无跟进记录</div>
             </el-collapse-item>
           </el-collapse>
         </el-tab-pane>
@@ -123,14 +107,6 @@
                 <el-tag v-for="pr in ct.projects" :key="pr.project_id" size="small" style="margin-right: 6px; margin-bottom: 4px;">
                   {{ pr.project_name }} · {{ pr.role || '成员' }} ({{ ATTITUDES[pr.attitude]?.label || pr.attitude }})
                 </el-tag>
-              </div>
-              <div v-if="ct.follow_ups.length" class="ct-fus">
-                <div class="sub-sec-title">沟通轨迹（{{ ct.follow_ups.length }}）</div>
-                <div v-for="fu in ct.follow_ups.slice(0, 5)" :key="fu.id" class="ct-fu-line">
-                  <span class="ct-fu-date">{{ fmtDate(fu.occurred_at) }}</span>
-                  <span v-if="fu.project_name">[{{ fu.project_name }}]</span>
-                  <span>{{ fu.summary }}</span>
-                </div>
               </div>
             </el-card>
           </div>
