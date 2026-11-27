@@ -57,31 +57,29 @@ b2b-crm/
 
 ## 部署
 
-- **域名**：`https://crm.example.com`（Cloudflare 橙云 + nginx 反代）
-- **前端**：静态文件 `/var/www/crm-frontend/dist`（nginx）
-- **后端**：`/opt/crm/crm-server`，systemd `crm.service`，监听 127.0.0.1:8080
-- **数据库**：`/opt/crm/data/crm.db`
-- **MCP**：`/opt/crm/crm-mcp`
+- **前端**：`npm run build` 产物 `dist/` 由 nginx 托管（建议配 HTTPS + CDN）
+- **后端**：`go build` 编译为二进制，由 systemd 守护，仅监听 127.0.0.1
+- **数据库**：SQLite（WAL 模式），本地文件
+- **MCP**：`crm-mcp` 二进制，stdio 模式
 
 ## 开发
 
-后端编译（在家庭服务器 home-bastion）：
+后端编译：
 
 ```bash
 cd backend
 go build -o crm-server ./cmd/server
 ```
 
-前端编译（注意：home-bastion 无 node/npm，需在 aws-my 本机用 Hermes 内置 node/npm）：
+前端编译（需 node/npm）：
 
 ```bash
-export PATH=/home/admin/.hermes/tools/node-26.12.1-linux-x64/bin:/home/admin/.hermes/tools/npm-12.2.2-linux-x64/bin:$PATH
 cd frontend
 npm install
 npm run build   # 产物在 dist/
 ```
 
-前端改版后需将 `dist/` 部署到 `/var/www/crm-frontend/dist`，浏览器强刷（Ctrl+F5）生效。
+前端改版后需重新部署 `dist/`，浏览器强刷（Ctrl+F5）生效。
 
 ## API 一览（前缀 `/api/v1`）
 
