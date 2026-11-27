@@ -261,7 +261,7 @@ onBeforeUnmount(() => {
 .card-hd { display: flex; justify-content: space-between; align-items: center; font-weight: 600; }
 .stage-chart { height: 320px; width: 100%; }
 .dev-metrics { display: flex; flex-direction: column; gap: 16px; padding: 8px 0; }
-.dm-title { font-size: 18px; font-weight: 700; color: #0f172a; margin-bottom: 10px; }
+.dm-title { font-size: 20px; font-weight: 700; color: #0f172a; margin-bottom: 10px; text-align: center; }
 .dm-item { display: flex; justify-content: space-between; align-items: baseline; border-bottom: 1px dashed #e2e8f0; padding-bottom: 12px; }
 .dm-label { font-size: 13px; color: #64748b; }
 .dm-value { font-size: 26px; font-weight: 700; color: #0f172a; }
