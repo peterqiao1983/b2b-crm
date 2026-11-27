@@ -107,7 +107,7 @@
 </template>
 
 <script setup>
-import { onBeforeUnmount, onMounted, ref } from "vue"
+import { nextTick, onBeforeUnmount, onMounted, ref } from "vue"
 import { useRouter } from "vue-router"
 import { ElMessage } from "element-plus"
 import client from "../api/client"
@@ -166,6 +166,7 @@ async function loadData() {
   counts.value = data.counts || counts.value
   upcoming.value = data.upcoming || []
   stageStats.value = data.stage_stats || []
+  await nextTick()
   renderStageChart()
 }
 
