@@ -51,7 +51,7 @@
       <el-row :gutter="20" align="middle">
         <el-col :xs="24" :md="8">
           <div class="dev-metrics">
-            <div class="dm-title">2026 开发成果</div>
+            <div class="dm-title">{{ devMetrics.dev_year }} 开发成果</div>
             <div class="dm-item">
               <span class="dm-label">2026 新客户</span>
               <span class="dm-value num-tabular">{{ devMetrics.new_customers }}</span>

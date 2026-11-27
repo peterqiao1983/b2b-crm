@@ -32,11 +32,12 @@ func (h *CRMHandler) Dashboard(c *gin.Context) {
 	var wonAmount float64
 	h.DB.Model(&models.Project{}).Where("stage = ?", "won").Select("COALESCE(SUM(estimated_amount), 0)").Scan(&wonAmount)
 
+	devYear := time.Now().Year()
 	var devNewCustomers, devNewProjects, devSuccessCustomers int64
-	h.DB.Model(&models.Company{}).Where("dev_year = ?", 2026).Count(&devNewCustomers)
-	h.DB.Model(&models.Project{}).Where("dev_year = ? AND stage != ?", 2026, "lost").Count(&devNewProjects)
+	h.DB.Model(&models.Company{}).Where("dev_year = ?", devYear).Count(&devNewCustomers)
+	h.DB.Model(&models.Project{}).Where("dev_year = ? AND stage != ?", devYear, "lost").Count(&devNewProjects)
 	h.DB.Model(&models.Company{}).
-		Where("dev_year = ? AND deleted_at IS NULL AND EXISTS (SELECT 1 FROM projects WHERE projects.company_id = companies.id AND projects.dev_year = ? AND projects.stage <> ? AND projects.deleted_at IS NULL)", 2026, 2026, "lost").
+		Where("dev_year = ? AND deleted_at IS NULL AND EXISTS (SELECT 1 FROM projects WHERE projects.company_id = companies.id AND projects.dev_year = ? AND projects.stage <> ? AND projects.deleted_at IS NULL)", devYear, devYear, "lost").
 		Count(&devSuccessCustomers)
 
 	type upcomingItem struct {
@@ -69,6 +70,7 @@ func (h *CRMHandler) Dashboard(c *gin.Context) {
 		"upcoming": upcoming,
 		"stage_stats": computeStageStats(h.DB),
 		"dev_metrics": gin.H{
+			"dev_year":          devYear,
 			"new_customers":     devNewCustomers,
 			"new_projects":      devNewProjects,
 			"success_customers": devSuccessCustomers,
@@ -140,6 +142,9 @@ func (h *CRMHandler) CreateCompany(c *gin.Context) {
 	}
 	if item.Stage == "" {
 		item.Stage = "lead"
+	}
+	if item.DevYear == 0 {
+		item.DevYear = time.Now().Year()
 	}
 	if err := h.DB.Create(&item).Error; err != nil {
 		response.Error(c, http.StatusInternalServerError, "创建公司失败")
@@ -562,6 +567,9 @@ func (h *CRMHandler) CreateProject(c *gin.Context) {
 	}
 	if item.Stage == "" {
 		item.Stage = "initial"
+	}
+	if item.DevYear == 0 {
+		item.DevYear = time.Now().Year()
 	}
 	if err := h.DB.Create(&item).Error; err != nil {
 		response.Error(c, http.StatusInternalServerError, "创建项目失败")
