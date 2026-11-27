@@ -48,22 +48,7 @@
           <el-button type="primary" link @click="router.push('/projects')">进入项目看板</el-button>
         </div>
       </template>
-      <div class="funnel-bar">
-        <div
-          v-for="st in activeFunnel"
-          :key="st.stage"
-          class="funnel-seg"
-          :style="{ width: st.pct + '%', backgroundColor: STAGE_COLORS[st.stage] }"
-          :title="`${PROJECT_STAGES[st.stage]?.label}: ${st.count}个 / ¥${fmtMoney(st.amount)}`"
-        />
-      </div>
-      <div class="funnel-legend">
-        <div v-for="st in stageStats" :key="st.stage" class="legend-item">
-          <span class="dot" :style="{ backgroundColor: STAGE_COLORS[st.stage] }"></span>
-          <span class="lg-name">{{ PROJECT_STAGES[st.stage]?.label || st.stage }}</span>
-          <span class="lg-num num-tabular">{{ st.count }}单 · ¥{{ fmtMoney(st.amount) }}</span>
-        </div>
-      </div>
+      <div ref="stageChart" class="stage-chart"></div>
     </el-card>
 
     <el-card shadow="never" style="margin-top: 14px;">
@@ -122,10 +107,11 @@
 </template>
 
 <script setup>
-import { computed, onMounted, ref } from "vue"
+import { onBeforeUnmount, onMounted, ref } from "vue"
 import { useRouter } from "vue-router"
 import { ElMessage } from "element-plus"
 import client from "../api/client"
+import * as echarts from "echarts"
 import { PROJECT_STAGES, fmtDate, fmtMoney } from "../utils/constants"
 import CompanyChainDrawer from "../components/CompanyChainDrawer.vue"
 
@@ -143,11 +129,8 @@ const counts = ref({ companies: 0, projects: 0, contacts: 0, follow_ups: 0, esti
 const upcoming = ref([])
 const stageStats = ref([])
 
-const activeFunnel = computed(() => {
-  const total = stageStats.value.reduce((acc, s) => acc + (s.count || 0), 0)
-  if (!total) return []
-  return stageStats.value.filter((s) => s.count > 0).map((s) => ({ ...s, pct: Math.max(4, Math.round((s.count / total) * 100)) }))
-})
+const stageChart = ref(null)
+let stageChartInstance = null
 
 function dueStatus(val) {
   if (!val) return null
@@ -183,13 +166,61 @@ async function loadData() {
   counts.value = data.counts || counts.value
   upcoming.value = data.upcoming || []
   stageStats.value = data.stage_stats || []
+  renderStageChart()
 }
 
 function openCompany(id) {
   drawerRef.value?.open(id)
 }
 
-onMounted(loadData)
+function renderStageChart() {
+  if (!stageChart.value || !stageStats.value.length) return
+  if (!stageChartInstance) {
+    stageChartInstance = echarts.init(stageChart.value)
+  }
+  const data = stageStats.value
+    .filter((s) => s.count > 0)
+    .map((s) => ({
+      name: PROJECT_STAGES[s.stage]?.label || s.stage,
+      value: s.count,
+      amount: s.amount,
+      itemStyle: { color: STAGE_COLORS[s.stage] },
+    }))
+  stageChartInstance.setOption({
+    tooltip: {
+      trigger: "item",
+      formatter: (p) => `${p.name}：${p.value} 单 · ¥${fmtMoney(p.data.amount)}（${p.percent}%）`,
+    },
+    legend: { bottom: 0, icon: "circle", itemWidth: 8, itemHeight: 8, textStyle: { color: "#475569" } },
+    series: [
+      {
+        type: "pie",
+        radius: ["42%", "68%"],
+        center: ["50%", "44%"],
+        avoidLabelOverlap: true,
+        itemStyle: { borderRadius: 6, borderColor: "#fff", borderWidth: 2 },
+        label: { formatter: "{b}\n{c} 单 · {d}%", fontSize: 12, color: "#334155" },
+        labelLine: { length: 12, length2: 10 },
+        data,
+      },
+    ],
+  })
+}
+
+function handleResize() {
+  stageChartInstance?.resize()
+}
+
+onMounted(() => {
+  loadData()
+  window.addEventListener("resize", handleResize)
+})
+
+onBeforeUnmount(() => {
+  window.removeEventListener("resize", handleResize)
+  stageChartInstance?.dispose()
+  stageChartInstance = null
+})
 </script>
 
 <style scoped>
@@ -204,13 +235,7 @@ onMounted(loadData)
 .stat-val.won { color: #059669; }
 .stat-val.sub { font-size: 20px; }
 .card-hd { display: flex; justify-content: space-between; align-items: center; font-weight: 600; }
-.funnel-bar { display: flex; height: 10px; border-radius: 6px; overflow: hidden; background: #e2e8f0; gap: 2px; }
-.funnel-seg { height: 100%; transition: width 0.3s; }
-.funnel-legend { display: flex; flex-wrap: wrap; gap: 16px; margin-top: 12px; }
-.legend-item { display: flex; align-items: center; gap: 6px; font-size: 13px; }
-.dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
-.lg-name { color: #334155; font-weight: 500; }
-.lg-num { color: #64748b; }
+.stage-chart { height: 320px; width: 100%; }
 .date-cell { display: flex; align-items: center; gap: 6px; }
 .m-card { padding: 12px; border: 1px solid #e2e8f0; border-radius: 10px; margin-bottom: 10px; background: #fff; }
 .m-card-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px; }
