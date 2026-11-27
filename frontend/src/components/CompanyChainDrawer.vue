@@ -239,7 +239,6 @@
             <el-option v-for="ct in summary?.contacts || []" :key="ct.id" :label="ct.name" :value="ct.id" />
             <el-option label="＋ 新增对接人" value="__new__" />
           </el-select>
-          <div style="margin-top: 6px; font-size: 12px; color: #409eff; cursor: pointer" @click="gotoContacts">对接人总表 →</div>
         </el-form-item>
         <el-form-item label="发生时间">
           <el-date-picker v-model="fuDlg.form.occurred_at" type="datetime" style="width: 100%" />
@@ -400,10 +399,6 @@ function onFuContactChange(val) {
     ctDlg.fromFollowUp = true
     openContactModal(null)
   }
-}
-
-function gotoContacts() {
-  window.open('/contacts', '_blank')
 }
 
 function openContactModal(ct) {
