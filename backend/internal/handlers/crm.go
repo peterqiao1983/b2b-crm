@@ -32,9 +32,12 @@ func (h *CRMHandler) Dashboard(c *gin.Context) {
 	var wonAmount float64
 	h.DB.Model(&models.Project{}).Where("stage = ?", "won").Select("COALESCE(SUM(estimated_amount), 0)").Scan(&wonAmount)
 
-	var devNewCustomers, devNewProjects int64
+	var devNewCustomers, devNewProjects, devSuccessCustomers int64
 	h.DB.Model(&models.Company{}).Where("dev_year = ?", 2026).Count(&devNewCustomers)
-	h.DB.Model(&models.Project{}).Where("dev_year = ?", 2026).Count(&devNewProjects)
+	h.DB.Model(&models.Project{}).Where("dev_year = ? AND stage != ?", 2026, "lost").Count(&devNewProjects)
+	h.DB.Model(&models.Company{}).
+		Where("dev_year = ? AND deleted_at IS NULL AND EXISTS (SELECT 1 FROM projects WHERE projects.company_id = companies.id AND projects.dev_year = ? AND projects.stage <> ? AND projects.deleted_at IS NULL)", 2026, 2026, "lost").
+		Count(&devSuccessCustomers)
 
 	type upcomingItem struct {
 		models.FollowUp
@@ -68,7 +71,7 @@ func (h *CRMHandler) Dashboard(c *gin.Context) {
 		"dev_metrics": gin.H{
 			"new_customers":     devNewCustomers,
 			"new_projects":      devNewProjects,
-			"success_customers": devNewCustomers,
+			"success_customers": devSuccessCustomers,
 		},
 	})
 }
