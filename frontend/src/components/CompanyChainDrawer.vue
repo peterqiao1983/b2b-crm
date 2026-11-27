@@ -235,9 +235,11 @@
           </el-select>
         </el-form-item>
         <el-form-item label="对接人">
-          <el-select v-model="fuDlg.form.contact_id" clearable style="width: 100%" placeholder="可选">
+          <el-select v-model="fuDlg.form.contact_id" clearable style="width: 100%" placeholder="可选" @change="onFuContactChange">
             <el-option v-for="ct in summary?.contacts || []" :key="ct.id" :label="ct.name" :value="ct.id" />
+            <el-option label="＋ 新增对接人" value="__new__" />
           </el-select>
+          <div style="margin-top: 6px; font-size: 12px; color: #409eff; cursor: pointer" @click="gotoContacts">对接人总表 →</div>
         </el-form-item>
         <el-form-item label="发生时间">
           <el-date-picker v-model="fuDlg.form.occurred_at" type="datetime" style="width: 100%" />
@@ -300,6 +302,7 @@ const projDlg = reactive({
 })
 const ctDlg = reactive({
   visible: false,
+  fromFollowUp: false,
   form: { id: null, name: '', title: '', phone: '', wechat: '', email: '', notes: '' }
 })
 const assignDlg = reactive({
@@ -391,6 +394,18 @@ async function deleteProject(id) {
   emit('changed')
 }
 
+function onFuContactChange(val) {
+  if (val === '__new__') {
+    fuDlg.form.contact_id = null
+    ctDlg.fromFollowUp = true
+    openContactModal(null)
+  }
+}
+
+function gotoContacts() {
+  window.open('/contacts', '_blank')
+}
+
 function openContactModal(ct) {
   if (ct) {
     ctDlg.form = { id: ct.id, name: ct.name, title: ct.title, phone: ct.phone, wechat: ct.wechat, email: ct.email, notes: ct.notes }
@@ -402,14 +417,19 @@ function openContactModal(ct) {
 
 async function saveContact() {
   const payload = { ...ctDlg.form, company_id: companyId.value }
+  let saved = null
   if (ctDlg.form.id) {
-    await client.put(`/contacts/${ctDlg.form.id}`, payload)
+    saved = await client.put(`/contacts/${ctDlg.form.id}`, payload)
   } else {
-    await client.post('/contacts', payload)
+    saved = await client.post('/contacts', payload)
   }
   ElMessage.success('联系人已保存')
   ctDlg.visible = false
   await refresh()
+  if (ctDlg.fromFollowUp && saved && saved.id) {
+    fuDlg.form.contact_id = saved.id
+    ctDlg.fromFollowUp = false
+  }
   emit('changed')
 }
 
