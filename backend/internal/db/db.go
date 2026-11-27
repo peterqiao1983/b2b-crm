@@ -118,7 +118,8 @@ func seedDefaultAdmin(database *gorm.DB) {
 	}
 	password := os.Getenv("CRM_INIT_PASSWORD")
 	if password == "" {
-		password = "REDACTED"
+		log.Printf("CRM_INIT_PASSWORD not set, skip seeding default admin")
+		return
 	}
 
 	hash, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)

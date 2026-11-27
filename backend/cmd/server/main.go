@@ -24,7 +24,10 @@ func getEnv(key, fallback string) string {
 func main() {
 	dbPath := getEnv("CRM_DB_PATH", "/opt/crm/data/crm.db")
 	listenAddr := getEnv("CRM_LISTEN", "127.0.0.1:8080")
-	jwtSecret := getEnv("CRM_JWT_SECRET", "REDACTED")
+	jwtSecret := os.Getenv("CRM_JWT_SECRET")
+	if jwtSecret == "" {
+		log.Fatal("CRM_JWT_SECRET not set, refusing to start")
+	}
 
 	if os.Getenv("GIN_MODE") == "" {
 		gin.SetMode(gin.ReleaseMode)
