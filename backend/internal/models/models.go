@@ -41,6 +41,7 @@ type Contact struct {
 	Email     string         `gorm:"size:128" json:"email"`
 	Wechat    string         `gorm:"size:64" json:"wechat"`
 	Notes     string         `gorm:"type:text" json:"notes"`
+	Role      string         `gorm:"size:32" json:"role"`
 	CreatedAt time.Time      `json:"created_at"`
 	UpdatedAt time.Time      `json:"updated_at"`
 	DeletedAt gorm.DeletedAt `gorm:"index" json:"deleted_at,omitempty"`

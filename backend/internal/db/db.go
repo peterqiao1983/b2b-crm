@@ -45,6 +45,7 @@ func Init(dbPath string) (*gorm.DB, error) {
 		ensureDeletedAtColumn(database, tbl)
 	}
 	migrateContactNullableCompanyID(database)
+	migrateContactRole(database)
 	seedDefaultAdmin(database)
 	go startWALCheckpointLoop(database)
 	return database, nil
@@ -99,6 +100,24 @@ func migrateContactNullableCompanyID(database *gorm.DB) {
 	})
 	if err != nil {
 		log.Printf("migrate contacts failed: %v", err)
+	}
+}
+
+func migrateContactRole(database *gorm.DB) {
+	var cols []struct {
+		Name string `gorm:"column:name"`
+	}
+	if err := database.Raw("PRAGMA table_info(contacts)").Scan(&cols).Error; err != nil {
+		return
+	}
+	for _, c := range cols {
+		if c.Name == "role" {
+			return
+		}
+	}
+	log.Println("migrating contacts.role column...")
+	if err := database.Exec(`ALTER TABLE contacts ADD COLUMN role text DEFAULT ''`).Error; err != nil {
+		log.Printf("migrate contacts.role failed: %v", err)
 	}
 }
 

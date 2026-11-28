@@ -7,6 +7,7 @@
           <div class="legend">
             <span class="dot done"></span> 已完成跟进
             <span class="dot todo"></span> 待办跟进计划
+            <span class="dot overdue"></span> 逾期待办
           </div>
         </div>
       </template>
@@ -83,12 +84,13 @@ const calendarOptions = reactive({
         })
       }
       for (const item of data.upcoming || []) {
+        const isOverdue = item.next_follow_at && new Date(item.next_follow_at) < new Date()
         events.push({
           id: `u-${item.id}`,
-          title: `[待办] ${item.company_name}${item.next_follow_note ? ' · ' + item.next_follow_note : ''}`,
+          title: `${isOverdue ? '[逾期] ' : '[待办] '}${item.company_name}${item.next_follow_note ? ' · ' + item.next_follow_note : ''}`,
           start: item.next_follow_at,
-          backgroundColor: '#ea580c',
-          borderColor: '#ea580c',
+          backgroundColor: isOverdue ? '#dc2626' : '#ea580c',
+          borderColor: isOverdue ? '#dc2626' : '#ea580c',
           extendedProps: { kind: 'upcoming', item }
         })
       }
@@ -141,5 +143,6 @@ function reloadEvents() {
 .dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 4px; }
 .dot.done { background: #16a34a; }
 .dot.todo { background: #ea580c; }
+.dot.overdue { background: #dc2626; }
 .det-body p { margin: 6px 0; font-size: 14px; line-height: 1.5; }
 </style>

@@ -32,6 +32,15 @@ func (h *CRMHandler) Dashboard(c *gin.Context) {
 	var wonAmount float64
 	h.DB.Model(&models.Project{}).Where("stage = ?", "won").Select("COALESCE(SUM(estimated_amount), 0)").Scan(&wonAmount)
 
+	nowReal := time.Now()
+	todayStart := time.Date(nowReal.Year(), nowReal.Month(), nowReal.Day(), 0, 0, 0, 0, nowReal.Location())
+	tomorrow := todayStart.Add(24 * time.Hour)
+	in7d := todayStart.Add(7 * 24 * time.Hour)
+	var taskOverdue, taskToday, taskUpcoming int64
+	h.DB.Model(&models.FollowUp{}).Where("next_follow_at IS NOT NULL AND next_follow_at < ?", todayStart).Count(&taskOverdue)
+	h.DB.Model(&models.FollowUp{}).Where("next_follow_at IS NOT NULL AND next_follow_at >= ? AND next_follow_at < ?", todayStart, tomorrow).Count(&taskToday)
+	h.DB.Model(&models.FollowUp{}).Where("next_follow_at IS NOT NULL AND next_follow_at >= ? AND next_follow_at < ?", tomorrow, in7d).Count(&taskUpcoming)
+
 	devYear := time.Now().Year()
 	var devNewCustomers, devNewProjects, devSuccessCustomers int64
 	h.DB.Model(&models.Company{}).Where("dev_year = ?", devYear).Count(&devNewCustomers)
@@ -74,6 +83,11 @@ func (h *CRMHandler) Dashboard(c *gin.Context) {
 			"new_customers":     devNewCustomers,
 			"new_projects":      devNewProjects,
 			"success_customers": devSuccessCustomers,
+		},
+		"task_overview": gin.H{
+			"overdue":  taskOverdue,
+			"today":    taskToday,
+			"upcoming": taskUpcoming,
 		},
 	})
 }
@@ -118,10 +132,21 @@ func (h *CRMHandler) ListCompanies(c *gin.Context) {
 		contCounts[r.CompanyID] = r.Cnt
 	}
 
+	lastFollow := map[uint]string{}
+	var lfRows []struct {
+		CompanyID uint
+		LastAt    string
+	}
+	h.DB.Model(&models.FollowUp{}).Select("company_id, MAX(occurred_at) as last_at").Group("company_id").Scan(&lfRows)
+	for _, r := range lfRows {
+		lastFollow[r.CompanyID] = r.LastAt
+	}
+
 	type companyItem struct {
 		models.Company
-		ProjectCount int64 `json:"project_count"`
-		ContactCount int64 `json:"contact_count"`
+		ProjectCount int64      `json:"project_count"`
+		ContactCount int64      `json:"contact_count"`
+		LastFollowAt string `json:"last_follow_at"`
 	}
 	res := make([]companyItem, 0, len(list))
 	for _, comp := range list {
@@ -129,6 +154,7 @@ func (h *CRMHandler) ListCompanies(c *gin.Context) {
 			Company:      comp,
 			ProjectCount: projCounts[comp.ID],
 			ContactCount: contCounts[comp.ID],
+			LastFollowAt: lastFollow[comp.ID],
 		})
 	}
 	response.OK(c, res)
@@ -490,6 +516,7 @@ func (h *CRMHandler) UpdateContact(c *gin.Context) {
 	existing.Email = payload.Email
 	existing.Wechat = payload.Wechat
 	existing.Notes = payload.Notes
+	existing.Role = payload.Role
 	if payload.CompanyID != nil && *payload.CompanyID == 0 {
 		existing.CompanyID = nil
 	} else {

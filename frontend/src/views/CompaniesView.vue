@@ -27,6 +27,11 @@
         <el-table-column prop="project_count" label="项目数" width="80" />
         <el-table-column prop="contact_count" label="联系人" width="80" />
         <el-table-column prop="owner" label="负责人" width="100" />
+        <el-table-column label="上次跟进" width="150">
+          <template #default="{ row }">
+            <span class="num-tabular">{{ fmtDate(row.last_follow_at) }}</span>
+          </template>
+        </el-table-column>
         <el-table-column label="操作" width="180" fixed="right">
           <template #default="{ row }">
             <el-button link type="primary" size="small" @click="openChain(row.id)">链式详情</el-button>
@@ -42,7 +47,7 @@
             <span class="m-name">{{ row.name }}</span>
             <el-tag size="small" :type="COMPANY_STAGES[row.stage]?.type || 'info'">{{ COMPANY_STAGES[row.stage]?.label || row.stage }}</el-tag>
           </div>
-          <div class="m-sub">{{ row.industry || "未填行业" }} · 项目 {{ row.project_count }} · 联系人 {{ row.contact_count }}</div>
+          <div class="m-sub">{{ row.industry || "未填行业" }} · 项目 {{ row.project_count }} · 联系人 {{ row.contact_count }} · 上次跟进 {{ fmtDate(row.last_follow_at) }}</div>
           <div class="m-acts">
             <el-button link type="primary" size="small" @click="openChain(row.id)">链式详情</el-button>
             <el-button link size="small" @click="openEdit(row)">编辑</el-button>
@@ -80,7 +85,7 @@
 import { onMounted, reactive, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import client from '../api/client'
-import { COMPANY_STAGES } from '../utils/constants'
+import { COMPANY_STAGES, fmtDate } from '../utils/constants'
 import CompanyChainDrawer from '../components/CompanyChainDrawer.vue'
 
 const q = ref('')

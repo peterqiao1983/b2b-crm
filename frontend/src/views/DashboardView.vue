@@ -41,6 +41,29 @@
       </el-col>
     </el-row>
 
+    <el-card shadow="never" style="margin-top: 14px;">
+      <template #header>
+        <div class="card-hd">
+          <span>待办概览</span>
+          <el-button type="primary" link @click="router.push('/calendar')">去日历视图</el-button>
+        </div>
+      </template>
+      <div class="task-overview">
+        <div class="task-item overdue" @click="router.push('/calendar')">
+          <div class="task-num num-tabular">{{ taskOverview.overdue }}</div>
+          <div class="task-label">已逾期</div>
+        </div>
+        <div class="task-item today" @click="router.push('/calendar')">
+          <div class="task-num num-tabular">{{ taskOverview.today }}</div>
+          <div class="task-label">今日待办</div>
+        </div>
+        <div class="task-item upcoming" @click="router.push('/calendar')">
+          <div class="task-num num-tabular">{{ taskOverview.upcoming }}</div>
+          <div class="task-label">未来 7 天</div>
+        </div>
+      </div>
+    </el-card>
+
     <el-card shadow="never" style="margin-top: 14px;" v-if="stageStats.length">
       <template #header>
         <div class="card-hd">
@@ -53,7 +76,7 @@
           <div class="dev-metrics">
             <div class="dm-title">{{ devMetrics.dev_year }} 开发成果</div>
             <div class="dm-item">
-              <span class="dm-label">2026 新客户</span>
+              <span class="dm-label">{{ devMetrics.dev_year }} 新客户</span>
               <span class="dm-value num-tabular">{{ devMetrics.new_customers }}</span>
             </div>
             <div class="dm-item">
@@ -150,6 +173,7 @@ const counts = ref({ companies: 0, projects: 0, contacts: 0, follow_ups: 0, esti
 const upcoming = ref([])
 const stageStats = ref([])
 const devMetrics = ref({ new_customers: 0, new_projects: 0, success_customers: 0 })
+const taskOverview = ref({ overdue: 0, today: 0, upcoming: 0 })
 
 const stageChart = ref(null)
 let stageChartInstance = null
@@ -189,6 +213,7 @@ async function loadData() {
   upcoming.value = data.upcoming || []
   stageStats.value = data.stage_stats || []
   devMetrics.value = data.dev_metrics || devMetrics.value
+  taskOverview.value = data.task_overview || taskOverview.value
   await nextTick()
   renderStageChart()
 }
@@ -265,6 +290,17 @@ onBeforeUnmount(() => {
 .dm-item { display: flex; justify-content: space-between; align-items: baseline; border-bottom: 1px dashed #e2e8f0; padding-bottom: 12px; }
 .dm-label { font-size: 13px; color: #64748b; }
 .dm-value { font-size: 26px; font-weight: 700; color: #0f172a; }
+.task-overview { display: flex; gap: 12px; }
+.task-item { flex: 1; text-align: center; padding: 18px 12px; border-radius: 10px; cursor: pointer; transition: transform .1s; }
+.task-item:hover { transform: translateY(-1px); }
+.task-item.overdue { background: #fef2f2; }
+.task-item.today { background: #fffbeb; }
+.task-item.upcoming { background: #eff6ff; }
+.task-num { font-size: 30px; font-weight: 700; line-height: 1; }
+.task-item.overdue .task-num { color: #dc2626; }
+.task-item.today .task-num { color: #d97706; }
+.task-item.upcoming .task-num { color: #3b5bdb; }
+.task-label { font-size: 13px; color: #64748b; margin-top: 6px; }
 .date-cell { display: flex; align-items: center; gap: 6px; }
 .m-card { padding: 12px; border: 1px solid #e2e8f0; border-radius: 10px; margin-bottom: 10px; background: #fff; }
 .m-card-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px; }

@@ -88,6 +88,9 @@
                 <div>
                   <strong>{{ ct.name }}</strong>
                   <span v-if="ct.title" class="ct-title">{{ ct.title }}</span>
+                  <el-tag v-if="ct.role" size="small" :type="CONTACT_ROLES[ct.role]?.type || 'info'" class="ct-role-tag">
+                    {{ CONTACT_ROLES[ct.role]?.label || ct.role }}
+                  </el-tag>
                 </div>
                 <div>
                   <el-button link type="primary" size="small" @click="openFollowUpModal(null, ct.id)">+ 记跟进</el-button>
@@ -164,6 +167,11 @@
       <el-form :model="ctDlg.form" label-width="80px">
         <el-form-item label="姓名"><el-input v-model="ctDlg.form.name" /></el-form-item>
         <el-form-item label="职位"><el-input v-model="ctDlg.form.title" /></el-form-item>
+        <el-form-item label="角色">
+          <el-select v-model="ctDlg.form.role" style="width: 100%">
+            <el-option v-for="(v, k) in CONTACT_ROLES" :key="k" :label="v.label" :value="k" />
+          </el-select>
+        </el-form-item>
         <el-form-item label="电话"><el-input v-model="ctDlg.form.phone" /></el-form-item>
         <el-form-item label="微信"><el-input v-model="ctDlg.form.wechat" /></el-form-item>
         <el-form-item label="邮箱"><el-input v-model="ctDlg.form.email" /></el-form-item>
@@ -261,7 +269,7 @@
 import { reactive, ref } from 'vue'
 import { ElMessage } from 'element-plus'
 import client from '../api/client'
-import { ATTITUDES, COMPANY_STAGES, FOLLOW_TYPES, PROJECT_STAGES, fmtDate, fmtMoney } from '../utils/constants'
+import { ATTITUDES, COMPANY_STAGES, CONTACT_ROLES, FOLLOW_TYPES, PROJECT_STAGES, fmtDate, fmtMoney } from '../utils/constants'
 
 const emit = defineEmits(['changed'])
 const visible = ref(false)
@@ -278,7 +286,7 @@ const projDlg = reactive({
 const ctDlg = reactive({
   visible: false,
   fromFollowUp: false,
-  form: { id: null, name: '', title: '', phone: '', wechat: '', email: '', notes: '' }
+  form: { id: null, name: '', title: '', phone: '', wechat: '', email: '', notes: '', role: 'other' }
 })
 const assignDlg = reactive({
   visible: false,
@@ -379,9 +387,9 @@ function onFuContactChange(val) {
 
 function openContactModal(ct) {
   if (ct) {
-    ctDlg.form = { id: ct.id, name: ct.name, title: ct.title, phone: ct.phone, wechat: ct.wechat, email: ct.email, notes: ct.notes }
+    ctDlg.form = { id: ct.id, name: ct.name, title: ct.title, phone: ct.phone, wechat: ct.wechat, email: ct.email, notes: ct.notes, role: ct.role || 'other' }
   } else {
-    ctDlg.form = { id: null, name: '', title: '', phone: '', wechat: '', email: '', notes: '' }
+    ctDlg.form = { id: null, name: '', title: '', phone: '', wechat: '', email: '', notes: '', role: 'other' }
   }
   ctDlg.visible = true
 }
@@ -506,6 +514,7 @@ defineExpose({ open })
 .contact-list { display: flex; flex-direction: column; gap: 10px; }
 .ct-top { display: flex; justify-content: space-between; align-items: center; }
 .ct-title { margin-left: 8px; font-size: 13px; color: #6b7280; }
+.ct-role-tag { margin-left: 6px; }
 .ct-info { display: flex; gap: 14px; flex-wrap: wrap; font-size: 13px; color: #4b5563; margin: 6px 0; }
 .ct-roles { font-size: 13px; margin-top: 4px; }
 .ct-fu-line { font-size: 12px; color: #374151; margin-top: 4px; display: flex; gap: 6px; }

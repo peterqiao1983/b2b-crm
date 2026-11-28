@@ -26,6 +26,14 @@ export const ATTITUDES = {
   oppose: { label: '反对', type: 'danger' }
 }
 
+export const CONTACT_ROLES = {
+  decision_maker: { label: '决策人', type: 'danger' },
+  influencer: { label: '技术影响者', type: 'warning' },
+  purchaser: { label: '采购经办', type: 'primary' },
+  user: { label: '使用者', type: 'success' },
+  other: { label: '其他', type: 'info' }
+}
+
 export function fmtDate(val) {
   if (!val) return '-'
   const d = new Date(val)
